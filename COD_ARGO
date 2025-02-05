@@ -1,0 +1,207 @@
+#include <Keypad.h>
+#include <Servo.h>
+#include <NewPing.h>
+
+const byte ROWS = 4;
+const byte COLS = 4;
+char keys[ROWS][COLS] = {
+  {'1', '2', '3', 'A'},
+  {'4', '5', '6', 'D'},
+  {'7', '8', '9', '0'},
+  {'*', '#', '0', 'C'}
+};
+byte rowPins[ROWS] = {2, 3, 4, 5};
+byte colPins[COLS] = {6, 7, 8, 9};
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+Servo servo1;
+Servo servo2;
+Servo servo3;
+
+const int E1 = 10;
+const int H1 = 11;
+const int E2 = 12;
+const int H2 = 13;
+
+const int trigPin = 17;
+const int echoPin = 18;
+const int maxDistance = 20;
+NewPing sonar(trigPin, echoPin, maxDistance);
+
+const unsigned long delayTime = 100;
+enum RotateMode { WAVE_DRIVE, FULL_STEP, HALF_STEP };
+
+bool isCupRemoved = false;
+
+void doStep(bool E1State, bool H1State, bool E2State, bool H2State) {
+    digitalWrite(E1, E1State);
+    digitalWrite(H1, H1State);
+    digitalWrite(E2, E2State);
+    digitalWrite(H2, H2State);
+    delay(delayTime);
+}
+
+void rotate(byte rotateMode) {
+    switch (rotateMode) {
+        case WAVE_DRIVE:
+            doStep(1, 1, 0, 0);
+            doStep(0, 0, 1, 1);
+            doStep(1, 0, 0, 0);
+            doStep(0, 0, 1, 0);
+            break;
+
+        case FULL_STEP:
+            doStep(1, 1, 1, 1);
+            doStep(1, 0, 1, 1);
+            doStep(1, 0, 1, 0);
+            doStep(1, 1, 1, 0);
+            break;
+
+        case HALF_STEP:
+            doStep(1, 1, 0, 0);
+            doStep(1, 1, 1, 1);
+            doStep(0, 0, 1, 1);
+            doStep(1, 0, 1, 1);
+            doStep(1, 0, 0, 0);
+            doStep(1, 0, 1, 0);
+            doStep(0, 0, 1, 0);
+            doStep(1, 1, 1, 0);
+            break;
+    }
+}
+
+void rotateForTime(unsigned long runTime) {
+    unsigned long startTime = millis();
+    unsigned long elapsedTime;
+
+    while (true) {
+        elapsedTime = (millis() - startTime);
+
+        if (elapsedTime < runTime) {
+            rotate(HALF_STEP);
+        } else {
+            digitalWrite(E1, LOW);
+            digitalWrite(H1, LOW);
+            digitalWrite(E2, LOW);
+            digitalWrite(H2, LOW);
+            break;
+        }
+    }
+}
+
+void setup() {
+    Serial.begin(9600);
+    servo1.attach(3);
+    servo2.attach(9);
+    servo3.attach(10);
+    servo4.attach(11);
+
+    pinMode(E1, OUTPUT);
+    pinMode(H1, OUTPUT);
+    pinMode(E2, OUTPUT);
+    pinMode(H2, OUTPUT);
+
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+}
+
+void loop() {
+    char key = keypad.getKey();
+    if (key) {
+        Serial.println(key);
+        if (key == 'D') {
+            String order = waitForOrder();
+            Serial.print("Заказ: ");
+            Serial.println(order);
+        }
+        if (key == 'A') {
+            String order = waitForOrder();
+            pourDrinks(order);
+        }
+    }
+
+    int distance = sonar.ping_cm();
+    if (distance > 0 && distance < maxDistance) {
+        if (isCupRemoved) {
+            isCupRemoved = false;
+            servo4.write(0);
+        }
+    } else {
+        if (!isCupRemoved) {
+            isCupRemoved = true;
+            digitalWrite(E1, LOW);
+            digitalWrite(H1, LOW);
+            digitalWrite(E2, LOW);
+            digitalWrite(H2, LOW);
+            servo1.write(0);
+            servo2.write(0);
+            servo3.write(0);
+            servo4.write(0);
+        }
+    }
+}
+
+String waitForOrder() {
+    String order = "";
+    char key;
+
+    while (true) {
+        key = keypad.getKey();
+        if (key) {
+            if (key == 'A') break;
+            order += key; 
+            Serial.print("Текущий заказ: ");
+            Serial.println(order);
+        }
+    }
+
+    return order;
+}
+
+void pourDrinks(String order) {
+    Serial.println("Запуск разлива напитков...");
+    rotateForTime(1950);
+    for (char &c : order) {
+        if (isCupRemoved) {
+            while (isCupRemoved) {
+                delay(100); 
+            }
+        }
+
+        switch (c) {
+            case '1':
+                opServo(servo1); //Газированная вода
+                break;
+            case '2':
+                opServo(servo2); //Мятный сироп
+                break;
+            case '3':
+                opServo(servo3); //Апельсиновый сок
+                break;
+            case '4':
+               
+                Serial.println("Закрытие потока жидкости...");
+                closServo(servo4);
+                break;
+            default:
+                Serial.println("Неизвестный напиток!");
+                break;
+        }
+        delay(1000);
+    }
+
+    Serial.println("Разлив завершен!");
+    servo4.write(0); 
+}
+
+void opServo(Servo &servo) {
+    servo.write(90); 
+    delay(2000); 
+    servo.write(0); 
+}
+
+void closServo(Servo &servo) {
+    servo.write(110); 
+    delay(5000); 
+    servo.write(0); 
+}
