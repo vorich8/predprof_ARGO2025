@@ -179,9 +179,31 @@ void pourDrinks(String order) {
                 opServo(servo3); //Апельсиновый сок
                 break;
             case '4':
-               
-                Serial.println("Закрытие потока жидкости...");
-                closServo(servo4);
+                opServo(servo1);
+                delay(1000);
+                opServo(servo1);
+                opServo(servo2);
+                break;
+            case '5':
+                opServo(servo1);
+                opServo(servo3);
+                delay(2000);
+                rotateForTime(1950);
+                opServo(servo1);
+                break;
+            case '6':
+                opServo(servo1);
+                opServo(servo3);
+                opServo(servo2);
+                delay(2000);
+                rotateForTime(1950);  
+                opServo(servo2);
+                delay(2000);
+                rotateForTime(1950);
+                opServo(servo2);
+                delay(2000);
+                rotateForTime(1950);
+                opServo(servo2);
                 break;
             default:
                 Serial.println("Неизвестный напиток!");
